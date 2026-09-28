@@ -303,14 +303,46 @@
   }
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
+
+  .splash{position:fixed;inset:0;background:var(--accent);color:#fff;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;transition:opacity .5s ease;}
+  .splash.hide{opacity:0;pointer-events:none;}
+  .splash .s-title{font-size:26px;font-weight:700;margin-bottom:8px;}
+  .splash .s-sub{font-size:13.5px;opacity:.85;margin-bottom:44px;}
+  .splash .s-brand{font-size:19px;font-weight:600;}
+  .splash .s-designer{font-size:13px;opacity:.85;margin-top:8px;}
+  .events{display:none;flex-wrap:wrap;gap:6px;justify-content:center;padding:0 14px 14px;}
+  .chip{font-size:12px;padding:5px 11px;border-radius:999px;background:var(--surface-2);color:var(--ink);border:1px solid transparent;}
+  .chip.holiday{background:transparent;color:var(--danger);border-color:var(--danger);}
+  .cal-day.holiday{color:var(--danger);font-weight:600;}
+  .cal-day.event::before{content:"";position:absolute;top:5px;width:4px;height:4px;border-radius:50%;background:var(--danger);}
+  .cal-day.selected.holiday{color:#fff;}
+  .cal-day.selected.event::before{background:#fff;}
+  .brand-foot{text-align:center;color:var(--ink-dim);font-size:11.5px;line-height:2;padding:28px 10px 8px;}
+  .hj-adj{display:flex;align-items:center;justify-content:center;gap:10px;font-size:12px;color:var(--ink-dim);margin:-6px 0 18px;}
+  .hj-adj button{width:28px;height:28px;border-radius:50%;border:none;background:var(--surface-2);color:var(--ink);font-size:15px;cursor:pointer;}
+  .alarm{position:fixed;inset:0;background:rgba(20,18,12,.55);z-index:90;display:none;align-items:center;justify-content:center;padding:24px;}
+  .alarm.show{display:flex;}
+  .alarm-card{background:var(--surface);border-radius:22px;padding:24px 20px 20px;width:100%;max-width:340px;text-align:center;}
+  .alarm-card .bell{font-size:38px;}
+  .alarm-card .a-text{font-size:18px;font-weight:700;margin:10px 0 4px;word-break:break-word;}
+  .alarm-card .a-time{color:var(--accent);font-size:13px;font-weight:600;}
+  .alarm-card .a-count{font-size:12px;color:var(--ink-dim);margin:4px 0 18px;}
+  .time-hint{font-size:11.5px;color:var(--ink-dim);margin-top:6px;line-height:1.7;}
+
   ::selection{background:var(--accent-soft);}
 </style>
 </head>
 <body>
+<div class="splash" id="splash">
+  <div class="s-title">دفتر برنامه نویسی روزانه</div>
+  <div class="s-sub">تقویم شمسی • یادآوری • بایگانی</div>
+  <div class="s-brand">کانون آگهی و تبلیغات گویا</div>
+  <div class="s-designer">طراح: یونس دهقانی مینابی</div>
+</div>
 <div id="app">
 
   <header class="top">
-    <span class="brand">دفتر روزانه</span>
+    <span class="brand">دفتر برنامه نویسی روزانه</span>
     <button class="icon-btn" id="notifBtn" title="یادآوری">🔔</button>
   </header>
 
@@ -323,7 +355,10 @@
       </div>
       <button id="nextDay">‹</button>
     </div>
-    <main><ul class="tasks" id="taskList"></ul></main>
+    <div class="events" id="todayEvents"></div>
+    <main><ul class="tasks" id="taskList"></ul>
+      <div class="brand-foot">کانون آگهی و تبلیغات گویا<br>طراح: یونس دهقانی مینابی</div>
+    </main>
   </div>
 
   <div id="archiveView" style="display:none;">
@@ -334,8 +369,10 @@
         <button class="icon-btn" id="calPrev">›</button>
       </div>
       <div class="cal-grid" id="calGrid"></div>
+      <div class="hj-adj"><span>تنظیم تاریخ قمری:</span><button id="hjMinus">−</button><span id="hjVal">0</span><button id="hjPlus">+</button></div>
       <div class="archive-day-panel">
         <p class="panel-title" id="archivePanelTitle"></p>
+        <div class="events" id="archiveEvents" style="justify-content:flex-start;padding:0 0 12px;"></div>
         <ul class="tasks" id="archiveTaskList"></ul>
       </div>
     </main>
@@ -367,6 +404,7 @@
   <div class="field">
     <label class="field-label">ساعت</label>
     <input type="time" id="taskTime" value="09:00">
+    <div class="time-hint">یادآوری سه‌بار با صدا تکرار می‌شه (هر ۲ دقیقه)، تا وقتی برنامه رو تیک نزده‌ای.</div>
   </div>
   <div class="field">
     <label class="field-label">تاریخ (شمسی)</label>
@@ -382,6 +420,18 @@
   </div>
 </div>
 
+<div class="alarm" id="alarm">
+  <div class="alarm-card">
+    <div class="bell">🔔</div>
+    <div class="a-text" id="aText"></div>
+    <div class="a-time" id="aTime"></div>
+    <div class="a-count" id="aCount"></div>
+    <div class="sheet-actions">
+      <button class="btn ghost" id="aClose">باشه</button>
+      <button class="btn primary" id="aDone">انجام شد ✓</button>
+    </div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -489,6 +539,7 @@ function renderTodayHeader(){
   const small=dateTitleEl.querySelector(".small");
   big.textContent = (isToday?"امروز، ":"") + dowNameFor(viewDate.jy,viewDate.jm,viewDate.jd);
   small.textContent = `${viewDate.jd} ${MONTHS[viewDate.jm-1]} ${viewDate.jy}`;
+  renderEventChips(document.getElementById("todayEvents"), eventsFor(viewDate.jy,viewDate.jm,viewDate.jd));
 }
 
 function renderTaskItem(t){
@@ -616,7 +667,10 @@ function makeCalDay(jy,jm,jd,other,withTasksSet){
   const key=keyOf(jy,jm,jd);
   const isToday = jy===today.jy && jm===today.jm && jd===today.jd;
   const isSelected = jy===selectedArchiveDate.jy && jm===selectedArchiveDate.jm && jd===selectedArchiveDate.jd;
-  el.className="cal-day"+(other?" other":"")+(isToday?" today":"")+(withTasksSet.has(key)?" has-tasks":"")+(isSelected?" selected":"");
+  const evs=eventsFor(jy,jm,jd);
+  const isFri=new Date(...toGregorianJsArgs(jy,jm,jd)).getDay()===5;
+  const isHol=isFri||evs.some(e=>e.h);
+  el.className="cal-day"+(other?" other":"")+(isToday?" today":"")+(withTasksSet.has(key)?" has-tasks":"")+(isSelected?" selected":"")+(isHol?" holiday":"")+(evs.length?" event":"");
   el.textContent=jd;
   el.addEventListener("click", ()=>{
     if(other){
@@ -638,6 +692,7 @@ document.getElementById("calNext").onclick=()=>{
 };
 
 function renderArchivePanel(){
+  renderEventChips(document.getElementById("archiveEvents"), eventsFor(selectedArchiveDate.jy,selectedArchiveDate.jm,selectedArchiveDate.jd));
   const isToday = selectedArchiveDate.jy===today.jy && selectedArchiveDate.jm===today.jm && selectedArchiveDate.jd===today.jd;
   archivePanelTitleEl.textContent = `برنامه‌های ${dowNameFor(selectedArchiveDate.jy,selectedArchiveDate.jm,selectedArchiveDate.jd)} ${selectedArchiveDate.jd} ${MONTHS[selectedArchiveDate.jm-1]} ${selectedArchiveDate.jy}` + (isToday? " (امروز)":"");
   const key=keyOf(selectedArchiveDate.jy,selectedArchiveDate.jm,selectedArchiveDate.jd);
@@ -717,10 +772,12 @@ document.getElementById("askPermBtn").onclick=async ()=>{
   }
 };
 document.getElementById("notifBtn").onclick=async ()=>{
-  if(!window.Notification){ showToast("این مرورگر نوتیفیکیشن را پشتیبانی نمی‌کند"); return; }
-  if(Notification.permission==="granted"){ showToast("یادآوری فعال است ✓"); return; }
-  const p = await Notification.requestPermission();
-  showToast(p==="granted" ? "یادآوری فعال شد" : "اجازه داده نشد");
+  unlockAudio(); beep(1);
+  let msg="صدا فعال شد ✓ (اگه نشنیدی، کلید سایلنت گوشی رو چک کن)";
+  if(window.Notification && Notification.permission==="default"){
+    try{ const p=await Notification.requestPermission(); if(p==="granted") msg="یادآوری و صدا فعال شد ✓"; }catch(e){}
+  }
+  showToast(msg);
 };
 
 document.getElementById("saveBtn").onclick=()=>{
@@ -730,35 +787,142 @@ document.getElementById("saveBtn").onclick=()=>{
   if(!text){ showToast("متن برنامه را وارد کن"); return; }
   const id = Date.now().toString(36)+Math.random().toString(36).slice(2,7);
   const item = { id, text, time, date:keyOf(jy,jm,jd), jy,jm,jd, done:false };
+  scheduleNotification(item);
   tasks.push(item);
   saveTasks(tasks);
-  scheduleNotification(item);
   closeSheet();
   viewDate={jy,jm,jd};
   document.querySelector('.tab-btn[data-tab="today"]').click();
   showToast("برنامه اضافه شد");
 };
 
-/* ---------- Notifications (best-effort, while page is open) ---------- */
-const scheduledTimers={};
+/* ---------- Occasions (national / religious) ---------- */
+const FIXED=[[1,1,"عید نوروز",1],[1,2,"عید نوروز",1],[1,3,"عید نوروز",1],[1,4,"عید نوروز",1],[1,12,"روز جمهوری اسلامی",1],[1,13,"روز طبیعت",1],
+[2,1,"بزرگداشت سعدی",0],[2,12,"روز معلم",0],[2,25,"بزرگداشت فردوسی",0],[3,14,"رحلت امام خمینی",1],[3,15,"قیام ۱۵ خرداد",1],
+[5,17,"روز خبرنگار",0],[6,1,"روز پزشک",0],[6,27,"روز شعر و ادب پارسی",0],[7,8,"بزرگداشت مولوی",0],[8,13,"روز دانش‌آموز",0],
+[9,16,"روز دانشجو",0],[9,30,"شب یلدا",0],[11,22,"پیروزی انقلاب اسلامی",1],[12,29,"ملی شدن صنعت نفت",1]];
+const HIJRI=[[1,9,"تاسوعای حسینی",1],[1,10,"عاشورای حسینی",1],[2,20,"اربعین حسینی",1],[2,28,"رحلت پیامبر(ص) و شهادت امام حسن(ع)",1],
+[2,30,"شهادت امام رضا(ع)",1],[3,8,"شهادت امام حسن عسکری(ع)",0],[3,17,"میلاد پیامبر(ص) و امام صادق(ع)",1],[6,3,"شهادت حضرت فاطمه(س)",1],
+[6,20,"ولادت حضرت فاطمه(س) و روز مادر",1],[7,13,"ولادت امام علی(ع) و روز پدر",1],[7,27,"مبعث پیامبر(ص)",1],[8,3,"ولادت امام حسین(ع)",0],
+[8,15,"نیمه شعبان",1],[9,19,"ضربت خوردن امام علی(ع)",0],[9,21,"شهادت امام علی(ع)",1],[10,1,"عید سعید فطر",1],[10,2,"تعطیل عید فطر",1],
+[10,25,"شهادت امام صادق(ع)",1],[11,11,"ولادت امام رضا(ع)",0],[12,10,"عید سعید قربان",1],[12,18,"عید سعید غدیر خم",1]];
+// تاریخ‌های تأییدشده‌ی تقویم رسمی ۱۴۰۵ (برای مناسبت‌های قمری)
+const OVR_1405=[[1,2,"تعطیل عید فطر"],[1,25,"شهادت امام صادق(ع)"],[3,6,"عید سعید قربان"],[3,14,"عید سعید غدیر خم"],[4,3,"تاسوعای حسینی"],[4,4,"عاشورای حسینی"],[5,13,"اربعین حسینی"]];
+const OVR_TITLES=["عید سعید فطر","تعطیل عید فطر","شهادت امام صادق(ع)","عید سعید قربان","عید سعید غدیر خم","تاسوعای حسینی","عاشورای حسینی","اربعین حسینی"];
+const hijriFmt=(()=>{try{return new Intl.DateTimeFormat('en-u-ca-islamic-umalqura',{day:'numeric',month:'numeric',year:'numeric'});}catch(e){return null;}})();
+let hijriOffset=0;
+try{ hijriOffset=parseInt(localStorage.getItem('hijriOffset')||'0',10)||0; }catch(e){}
+function hijriOf(jy,jm,jd){
+  if(!hijriFmt) return null;
+  const [gy,gm,gd]=toGregorian(jy,jm,jd);
+  const dt=new Date(gy,gm-1,gd+hijriOffset,12,0,0);
+  let m,d;
+  hijriFmt.formatToParts(dt).forEach(p=>{ if(p.type==='month') m=parseInt(p.value,10); if(p.type==='day') d=parseInt(p.value,10); });
+  return (m&&d)?[m,d]:null;
+}
+const eventCache={};
+function eventsFor(jy,jm,jd){
+  const k=jy+'-'+jm+'-'+jd+'|'+hijriOffset;
+  if(eventCache[k]) return eventCache[k];
+  const list=[];
+  FIXED.forEach(e=>{ if(e[0]===jm && e[1]===jd) list.push({t:e[2],h:!!e[3]}); });
+  const hj=hijriOf(jy,jm,jd);
+  const ovr=(jy===1405);
+  if(hj) HIJRI.forEach(e=>{ if(e[0]===hj[0] && e[1]===hj[1] && !(ovr && OVR_TITLES.includes(e[2]))) list.push({t:e[2],h:!!e[3]}); });
+  if(ovr) OVR_1405.forEach(e=>{ if(e[0]===jm && e[1]===jd) list.push({t:e[2],h:true}); });
+  eventCache[k]=list; return list;
+}
+function renderEventChips(el,list){
+  el.innerHTML='';
+  list.forEach(e=>{ const c=document.createElement('span'); c.className='chip'+(e.h?' holiday':''); c.textContent=(e.h?'تعطیل • ':'')+e.t; el.appendChild(c); });
+  el.style.display=list.length?'flex':'none';
+}
+function setHijriOffset(v){
+  hijriOffset=Math.max(-2,Math.min(2,v));
+  try{ localStorage.setItem('hijriOffset',String(hijriOffset)); }catch(e){}
+  document.getElementById('hjVal').textContent=hijriOffset;
+  renderCalendar(); renderArchivePanel();
+}
+document.getElementById('hjMinus').onclick=()=>setHijriOffset(hijriOffset-1);
+document.getElementById('hjPlus').onclick=()=>setHijriOffset(hijriOffset+1);
+document.getElementById('hjVal').textContent=hijriOffset;
+
+/* ---------- Sound + reminders (3 repeats, works while app is open) ---------- */
+let audioCtx=null;
+function unlockAudio(){
+  try{
+    if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==='suspended') audioCtx.resume();
+  }catch(e){}
+}
+document.addEventListener('touchstart',unlockAudio,{passive:true});
+document.addEventListener('click',unlockAudio);
+function beep(times){
+  if(!audioCtx) return;
+  const t0=audioCtx.currentTime;
+  for(let i=0;i<times;i++){
+    const o=audioCtx.createOscillator(), g=audioCtx.createGain(), s=t0+i*0.5;
+    o.type='sine'; o.frequency.value=(i%2)?880:1047;
+    g.gain.setValueAtTime(0.0001,s);
+    g.gain.exponentialRampToValueAtTime(0.6,s+0.03);
+    g.gain.exponentialRampToValueAtTime(0.0001,s+0.4);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(s); o.stop(s+0.45);
+  }
+}
+const MAX_REPEATS=3, REPEAT_GAP_MIN=2;
+function taskTargetMs(t){
+  const [gy,gm,gd]=toGregorian(t.jy,t.jm,t.jd);
+  const [hh,mm]=t.time.split(':').map(Number);
+  return new Date(gy,gm-1,gd,hh,mm,0,0).getTime();
+}
+// called when a task is created: past times never ring
 function scheduleNotification(item){
-  if(!window.Notification || Notification.permission!=="granted") return;
-  const [gy,gm,gd]=toGregorian(item.jy,item.jm,item.jd);
-  const [hh,mm]=item.time.split(":").map(Number);
-  const target=new Date(gy,gm-1,gd,hh,mm,0,0);
-  const delay=target.getTime()-Date.now();
-  if(delay<=0 || delay > 2147000000) return; // ignore past or too-far-future (setTimeout limit)
-  if(scheduledTimers[item.id]) clearTimeout(scheduledTimers[item.id]);
-  scheduledTimers[item.id]=setTimeout(()=>{
-    try{
-      new Notification("یادآوری برنامه", { body: item.text + "  •  " + item.time, tag: item.id });
-    }catch(e){}
-  }, delay);
+  if(taskTargetMs(item)<=Date.now()) item.fired=MAX_REPEATS;
 }
-function scheduleAllUpcoming(){
-  tasks.filter(t=>!t.done).forEach(scheduleNotification);
+const alarmEl=document.getElementById('alarm');
+let alarmQueue=[], alarmCurrent=null;
+function showAlarm(t,n){ alarmQueue.push({t,n}); if(!alarmCurrent) nextAlarm(); }
+function nextAlarm(){
+  alarmCurrent=alarmQueue.shift()||null;
+  if(!alarmCurrent){ alarmEl.classList.remove('show'); return; }
+  document.getElementById('aText').textContent=alarmCurrent.t.text;
+  document.getElementById('aTime').textContent='ساعت '+alarmCurrent.t.time;
+  document.getElementById('aCount').textContent='یادآوری '+alarmCurrent.n+' از '+MAX_REPEATS;
+  alarmEl.classList.add('show');
 }
-scheduleAllUpcoming();
+document.getElementById('aClose').onclick=()=>{ nextAlarm(); };
+document.getElementById('aDone').onclick=()=>{
+  if(alarmCurrent){
+    const t=tasks.find(x=>x.id===alarmCurrent.t.id);
+    if(t){ t.done=true; t.fired=MAX_REPEATS; saveTasks(tasks); refreshAll(); }
+  }
+  nextAlarm();
+};
+function fireAlarm(t,n){
+  beep(3);
+  try{ if(navigator.vibrate) navigator.vibrate([300,150,300,150,300]); }catch(e){}
+  showAlarm(t,n);
+  if(window.Notification && Notification.permission==='granted'){
+    try{ new Notification('یادآوری '+n+' از '+MAX_REPEATS,{body:t.text+'  •  '+t.time,tag:t.id+'-'+n}); }catch(e){}
+  }
+}
+function checkAlarms(){
+  const now=Date.now(); let changed=false;
+  tasks.forEach(t=>{
+    if(t.done) return;
+    const f=t.fired||0; if(f>=MAX_REPEATS) return;
+    const due=taskTargetMs(t)+f*REPEAT_GAP_MIN*60000;
+    if(now>=due){
+      if(now-due>30*60000){ t.fired=MAX_REPEATS; changed=true; return; }
+      t.fired=f+1; changed=true;
+      fireAlarm(t,t.fired);
+    }
+  });
+  if(changed) saveTasks(tasks);
+}
+setInterval(checkAlarms,10000);
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) checkAlarms(); });
 
 /* ---------- Toast ---------- */
 let toastTimer=null;
@@ -789,6 +953,13 @@ function maybeShowInstallHint(){
 /* ---------- Init ---------- */
 renderToday();
 maybeShowInstallHint();
+checkAlarms();
+(function(){
+  const s=document.getElementById('splash');
+  const hide=()=>{ s.classList.add('hide'); setTimeout(()=>s.remove(),600); };
+  s.addEventListener('click',hide);
+  setTimeout(hide,2200);
+})();
 </script>
 </body>
 </html>
